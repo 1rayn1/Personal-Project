@@ -9,10 +9,21 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import SimpleImputer
 
 # Paths
+csv_files = [f for f in os.listdir('.') if f.endswith('.csv')]
 
-file_path = 'car data.csv'
-model_file = 'sgd_car_model.pkl'
-scaler_file = 'scaler.pkl'
+print("Available CSV files:")
+for file in csv_files:
+    print(f"- {file}")
+while True:
+    path = input("Enter the csv path you want to predict trends for: ")
+
+    if path in csv_files:
+        file_path = path
+        model_file = 'sgd_trend_predict.pkl'
+        scaler_file = 'scalar.pkl'
+        break
+    else:
+        print("That is not a correct file path")
 
 def load_and_clean_data(path):
     data = pd.read_csv(path, index_col=0)
@@ -160,5 +171,4 @@ def main():
         else:
             print("Invalid choice. Please enter a number between 1 and 4.")
 
-if __name__ == "__main__":
-    main()
+main()
