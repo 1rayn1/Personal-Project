@@ -7,6 +7,21 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.impute import SimpleImputer
+import sys
+import time
+
+def write(message): #Gradually types out every line instead of typewriteing it in blocks
+	#Function was made by my friend
+    for char in message:
+        sys.stdout.write(char)
+        sys.stdout.flush()
+        if char != "\n":
+            time.sleep(0.01)
+        else:
+            time.sleep(0.10)
+
+def space():
+    print("\n")
 
 # Paths
 csv_files = [f for f in os.listdir('.') if f.endswith('.csv')]
@@ -15,13 +30,15 @@ print("Available CSV files:")
 for file in csv_files:
     print(f"- {file}")
 while True:
-    path = input("Enter the csv path you want to predict trends for: ")
+    path = input("Enter the csv path you want to predict trends for(quit to exit program): ")
 
     if path in csv_files:
         file_path = path
         model_file = 'sgd_trend_predict.pkl'
         scaler_file = 'scalar.pkl'
         break
+    elif path.lower() == "quit":
+        quit()
     else:
         print("That is not a correct file path")
 
@@ -112,6 +129,7 @@ def missing_value_removal(score_dataset, X_train, X_valid, y_train, y_valid):
     else:
         return "Both methods give the same MAE"
 
+
 def main():
     data = None
     scaler = None
@@ -119,7 +137,7 @@ def main():
     while True:
         print("\nSelect an action:")
         print("1. Reset data and model")
-        print("2. Train and evaluate model")
+        print("2. Train and evaluate model or create model")
         print("3. Predict new data")
         print("4. Exit program")
         choice = input("Enter your choice (1-4): ").strip()
