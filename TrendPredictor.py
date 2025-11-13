@@ -42,9 +42,18 @@ while True:
     else:
         print("That is not a correct file path")
 
-def load_and_clean_data(path):
+def load_and_clean_data(path, subset=None):
     data = pd.read_csv(path, index_col=0)
-    data = data.dropna(subset=['Present_Price', 'Year', 'Selling_Price', 'Kms_Driven'])
+
+    if subset:
+        missing_cols = [col for col in subset if col not in data.columns]
+        if missing_cols:
+            print(f"Warning: These columns are not in the dataset and will be ignored: {missing_cols}")
+            subset = [col for col in subset if col in data.columns]
+        if subset:
+            data = data.dropna(subset=subset)
+        else:
+            print("No valid columns provided for missing value removal. Proceeding without dropping rows.")
     return data
 
 def get_model(train_X, train_y):
@@ -74,25 +83,23 @@ def get_scaler(train_X):
         joblib.dump(scaler, scaler_file)
     return scaler
 
-def predict_price(model, scaler):
+def predict_price(model, scaler, selected_features):
     while True:
         try:
-            print("\nEnter car details to predict Present Price (or type 'exit' to quit):")
-            year = input("Year: ")
-            if year.lower() == 'exit':
-                break
-            selling_price = input("Selling Price: ")
-            kms_driven = input("Kms Driven: ")
-
-            input_data = [year, selling_price, kms_driven]
-            if not all(x.replace('.', '', 1).isdigit() for x in input_data):
-                print("Please enter valid numeric values.")
-                continue
-
-            input_data = [[float(year), float(selling_price), float(kms_driven)]]
-            input_scaled = scaler.transform(input_data)
-            prediction = model.predict(input_scaled)
-            print(f"Predicted Present Price: ₹{prediction[0]:.2f}")
+            print("\nEnter values for the following features to predict (or type 'exit' to quit):")
+            input_data = []
+            for feature in selected_features:
+                value = input(f"{feature}: ")
+                if value.lower() == 'exit':
+                    return
+                if not value.replace('.', '', 1).isdigit():
+                    print("Please enter valid numeric values.")
+                    break
+                input_data.append(float(value))
+            else:
+                input_scaled = scaler.transform([input_data])
+                prediction = model.predict(input_scaled)
+                print(f"Predicted value: ₹{prediction[0]:.2f}")
         except Exception as pred_error:
             print("Prediction error:", pred_error)
 
@@ -134,6 +141,7 @@ def main():
     data = None
     scaler = None
     model = None
+    selected_features = []
     while True:
         print("\nSelect an action:")
         print("1. Reset data and model")
@@ -155,24 +163,42 @@ def main():
 
         elif choice == "2":
             try:
-                data = load_and_clean_data(file_path)
-                y = data['Present_Price'].values
-                features = ['Year', 'Selling_Price', 'Kms_Driven']
-                X = data[features]
+                create_or_train = input("Enter create if you want to create a model. If you want to train a model, enter anything else: ")
+                if create_or_train.lower() == "create":
+                    raw_data = pd.read_csv(file_path, index_col=0)
+                    print("Available columns in the dataset:")
+                    for columntitle in raw_data.columns:
+                        print(f"- {columntitle}")
 
-                train_X, val_X, train_y, val_y = train_test_split(X, y, random_state=1)
+                    a = input("Enter the column you want to predict: ").strip()
+                    b = input("Enter the columns to use for prediction (comma-separated): ").strip().split(",")
 
-                best_mae = missing_value_removal(score_dataset, train_X, val_X, train_y, val_y)
-                print(f"Best MAE from outlier/missing value handling: {best_mae}")
+                    if a not in raw_data.columns or not all(col in raw_data.columns for col in b):
+                        print("Invalid column selection. Please check the column names and try again.")
+                        continue
+                else:
+                    subset_columns = [a] + b
+                    data = load_and_clean_data(file_path, subset=subset_columns)
 
-                scaler = get_scaler(train_X.values)
-                train_X_scaled = scaler.transform(train_X.values)
-                val_X_scaled = scaler.transform(val_X.values)
+                    y = data[a].values
+                    X = data[b]
 
-                model = get_model(train_X_scaled, train_y)
-                preds = model.predict(val_X_scaled)
-                mae = mean_absolute_error(val_y, preds)
-                print(f"MAE after incremental training: {mae:.2f}")
+                    train_X, val_X, train_y, val_y = train_test_split(X, y, random_state=1)
+
+                    best_mae = missing_value_removal(score_dataset, train_X, val_X, train_y, val_y)
+                    print(f"Best MAE from outlier/missing value handling: {best_mae}")
+
+                    scaler = get_scaler(train_X.values)
+                    train_X_scaled = scaler.transform(train_X.values)
+                    val_X_scaled = scaler.transform(val_X.values)
+
+                    model = get_model(train_X_scaled, train_y)
+                    preds = model.predict(val_X_scaled)
+                    mae = mean_absolute_error(val_y, preds)
+                    print(f"MAE after incremental training: {mae:.2f}")
+
+                    selected_features = b
+
             except Exception as e:
                 print("Error during training:", e)
 
@@ -180,7 +206,7 @@ def main():
             if model is None or scaler is None:
                 print("Model and scaler not trained yet. Please train the model first (option 2).")
             else:
-                predict_price(model, scaler)
+                predict_price(model, scaler,selected_features)
 
         elif choice == "4":
             print("Exiting program.")
