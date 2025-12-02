@@ -24,11 +24,17 @@ def space():
     print("\n")
 
 # Paths
+"""
+csv_files = []
+for f in os.listdir('.'):
+    if f.endswith('.csv'):
+        csv_files.append(f)"""
 csv_files = [f for f in os.listdir('.') if f.endswith('.csv')]
 
 print("Available CSV files:")
 for file in csv_files:
     print(f"- {file}")
+
 while True:
     path = input("Enter the csv path you want to predict trends for(quit to exit program): ")
 
@@ -46,14 +52,9 @@ def load_and_clean_data(path, subset=None):
     data = pd.read_csv(path, index_col=0)
 
     if subset:
-        missing_cols = [col for col in subset if col not in data.columns]
-        if missing_cols:
-            print(f"Warning: These columns are not in the dataset and will be ignored: {missing_cols}")
-            subset = [col for col in subset if col in data.columns]
-        if subset:
-            data = data.dropna(subset=subset)
-        else:
-            print("No valid columns provided for missing value removal. Proceeding without dropping rows.")
+        data = data.dropna(subset=subset)
+    else:
+        print("No valid columns provided for missing value removal. Proceeding without dropping rows.")
     return data
 
 def get_model(train_X, train_y):
@@ -99,7 +100,7 @@ def predict_price(model, scaler, selected_features):
             else:
                 input_scaled = scaler.transform([input_data])
                 prediction = model.predict(input_scaled)
-                print(f"Predicted value: ₹{prediction[0]:.2f}")
+                print(f"Predicted value: ${prediction[0]:.2f}")
         except Exception as pred_error:
             print("Prediction error:", pred_error)
 
@@ -137,45 +138,45 @@ def missing_value_removal(score_dataset, X_train, X_valid, y_train, y_valid):
         return "Both methods give the same MAE"
 
 
-def main():
-    data = None
-    scaler = None
-    model = None
-    selected_features = []
-    while True:
-        print("\nSelect an action:")
-        print("1. Reset data and model")
-        print("2. Train and evaluate model or create model")
-        print("3. Predict new data")
-        print("4. Exit program")
-        choice = input("Enter your choice (1-4): ").strip()
+data = None
+scaler = None
+model = None
+selected_features = []
 
-        if choice == "1":
-            if os.path.exists(model_file):
-                os.remove(model_file)
-                print("Deleted saved model.")
-            if os.path.exists(scaler_file):
-                os.remove(scaler_file)
-                print("Deleted saved scaler.")
-            data = None
-            scaler = None
-            model = None
+while True:
+    print("\nSelect an action:")
+    print("1. Reset data and model")
+    print("2. Train and evaluate model or create model")
+    print("3. Predict new data")
+    print("4. Exit program")
+    choice = input("Enter your choice (1-4): ").strip()
 
-        elif choice == "2":
-            try:
-                create_or_train = input("Enter create if you want to create a model. If you want to train a model, enter anything else: ")
-                if create_or_train.lower() == "create":
-                    raw_data = pd.read_csv(file_path, index_col=0)
-                    print("Available columns in the dataset:")
-                    for columntitle in raw_data.columns:
-                        print(f"- {columntitle}")
+    if choice == "1":
+        if os.path.exists(model_file):
+            os.remove(model_file)
+            print("Deleted saved model.")
+        if os.path.exists(scaler_file):
+            os.remove(scaler_file)
+            print("Deleted saved scaler.")
+        data = None
+        scaler = None
+        model = None
 
-                    a = input("Enter the column you want to predict: ").strip()
-                    b = input("Enter the columns to use for prediction (comma-separated): ").strip().split(",")
+    elif choice == "2":
+        try:
+            create_or_train = input("Enter create if you want to create a model. If you want to train a model, enter anything else: ")
+            if create_or_train.lower() == "create":
+                raw_data = pd.read_csv(file_path, index_col=0)
+                print("Available columns in the dataset:")
+                for columntitle in raw_data.columns:
+                    print(f"- {columntitle}")
 
-                    if a not in raw_data.columns or not all(col in raw_data.columns for col in b):
-                        print("Invalid column selection. Please check the column names and try again.")
-                        continue
+                a = input("Enter the column you want to predict: ").strip()
+                b = input("Enter the columns to use for prediction (comma-separated): ").strip().split(",")
+
+                if a not in raw_data.columns or not all(col in raw_data.columns for col in b):
+                    print("Invalid column selection. Please check the column names and try again.")
+                    continue
                 else:
                     subset_columns = [a] + b
                     data = load_and_clean_data(file_path, subset=subset_columns)
@@ -199,20 +200,39 @@ def main():
 
                     selected_features = b
 
-            except Exception as e:
-                print("Error during training:", e)
-
-        elif choice == "3":
-            if model is None or scaler is None:
-                print("Model and scaler not trained yet. Please train the model first (option 2).")
             else:
-                predict_price(model, scaler,selected_features)
 
-        elif choice == "4":
-            print("Exiting program.")
-            break
+                y = data[a].values
+                X = data[b]
 
+                train_X, val_X, train_y, val_y = train_test_split(X, y, random_state=1)
+
+                best_mae = missing_value_removal(score_dataset, train_X, val_X, train_y, val_y)
+                print(f"Best MAE from outlier/missing value handling: {best_mae}")
+
+                scaler = get_scaler(train_X.values)
+                train_X_scaled = scaler.transform(train_X.values)
+                val_X_scaled = scaler.transform(val_X.values)
+
+                model = get_model(train_X_scaled, train_y)
+                preds = model.predict(val_X_scaled)
+                mae = mean_absolute_error(val_y, preds)
+                print(f"MAE after incremental training: {mae:.2f}")
+
+                selected_features = b
+
+        except Exception as e:
+            print("Error during training:", e)
+
+    elif choice == "3":
+        if model is None or scaler is None:
+            print("Model and scaler not trained yet. Please train the model first (option 2).")
         else:
-            print("Invalid choice. Please enter a number between 1 and 4.")
+            predict_price(model, scaler,selected_features)
 
-main()
+    elif choice == "4":
+        print("Exiting program.")
+        break
+
+    else:
+        print("Invalid choice. Please enter a number between 1 and 4.")
